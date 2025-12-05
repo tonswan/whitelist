@@ -86,8 +86,12 @@ export const getUserFromTelegram = (): UserProfile => {
   };
 };
 
-export const triggerHaptic = (style: 'light' | 'medium' | 'heavy' = 'light') => {
+export const triggerHaptic = (style: 'light' | 'medium' | 'heavy' | 'success' | 'error' | 'warning' = 'light') => {
   if (tg && tg.HapticFeedback) {
-    tg.HapticFeedback.impactOccurred(style);
+    if (style === 'success' || style === 'error' || style === 'warning') {
+        tg.HapticFeedback.notificationOccurred(style);
+    } else {
+        tg.HapticFeedback.impactOccurred(style);
+    }
   }
 };

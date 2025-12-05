@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext, useState } from 'react';
 import { AppContext } from '../App';
 import { PLANS, TRANSLATIONS } from '../constants';
 import { PlanCard } from '../components/PlanCard';
@@ -6,6 +6,9 @@ import { processPurchase } from '../services/mockDb';
 import { Plan } from '../types';
 import { tg, triggerHaptic } from '../services/telegram';
 import { useNavigate } from 'react-router-dom';
+
+// Change this to your deployed backend URL
+const API_URL = "http://localhost:8000/api";
 
 export const Home: React.FC = () => {
   const { state, setState } = useContext(AppContext);
@@ -19,34 +22,87 @@ export const Home: React.FC = () => {
   const handleBuy = async (plan: Plan) => {
     setIsLoading(true);
 
-    // In a real app, we would:
-    // 1. Call backend to create Invoice Link
-    // 2. WebApp.openInvoice(link)
-    // 3. Listen for transaction status
-    
-    // Simulating Telegram Stars Payment flow
-    if (!plan.isTrial) {
-      // Fake delay for "payment processing"
-      triggerHaptic('heavy');
+    // CASE 1: Free Trial (Client side / Mock logic)
+    if (plan.isTrial) {
+      try {
+        const result = await processPurchase(plan);
+        if (result.success) {
+          triggerHaptic('success');
+          setState(prev => ({
+            ...prev,
+            subscription: result.subscription,
+            user: prev.user ? { ...prev.user, hasUsedTrial: true } : null
+          }));
+          navigate('/success');
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsLoading(false);
+      }
+      return;
     }
 
+    // CASE 2: Paid Subscription (Telegram Stars)
+    triggerHaptic('medium');
+
     try {
-      const result = await processPurchase(plan);
-      if (result.success) {
-        tg?.HapticFeedback.notificationOccurred('success');
-        setState(prev => ({
-          ...prev,
-          subscription: result.subscription,
-          user: prev.user ? { ...prev.user, hasUsedTrial: plan.isTrial ? true : prev.user.hasUsedTrial } : null
-        }));
+      if (!state.user?.id) throw new Error("User ID not found");
+
+      // 1. Request Invoice Link from Backend
+      const response = await fetch(`${API_URL}/create-invoice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: state.user.id,
+          plan_id: plan.id,
+          price_stars: plan.priceStars,
+          plan_name: plan.name
+        })
+      });
+
+      if (!response.ok) throw new Error("Failed to create invoice");
+      
+      const data = await response.json();
+      const invoiceUrl = data.invoice_link;
+
+      if (!invoiceUrl) throw new Error("No invoice link returned");
+
+      // 2. Open Invoice in Telegram
+      tg?.openInvoice(invoiceUrl, (status) => {
+        setIsLoading(false); // Stop loading spinner when modal closes
         
-        // Navigate to success page/modal (here just passing state to a success view)
-        navigate('/success');
-      }
+        if (status === 'paid') {
+          tg.HapticFeedback.notificationOccurred('success');
+          
+          // Optimistically update UI or poll backend for confirmation
+          // For demo, we assume success and update local state
+          const now = Date.now();
+          const durationMs = plan.durationMonths * 30 * 24 * 60 * 60 * 1000;
+          
+          setState(prev => ({
+            ...prev,
+            subscription: {
+              active: true,
+              planName: plan.name,
+              expiryDate: now + durationMs
+            }
+          }));
+          
+          navigate('/success');
+        } else if (status === 'cancelled' || status === 'failed') {
+           tg.HapticFeedback.notificationOccurred('error');
+        }
+      });
+
     } catch (e) {
+      console.error("Payment flow error", e);
       tg?.HapticFeedback.notificationOccurred('error');
-      console.error("Payment failed", e);
-    } finally {
+      tg?.showPopup({
+        title: 'Error',
+        message: 'Could not initiate payment. Please try again.',
+        buttons: [{ type: 'ok' }]
+      });
       setIsLoading(false);
     }
   };
