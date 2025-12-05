@@ -7,8 +7,8 @@ import { Plan } from '../types';
 import { tg, triggerHaptic } from '../services/telegram';
 import { useNavigate } from 'react-router-dom';
 
-// Change this to your deployed backend URL
-const API_URL = "http://localhost:8000/api";
+// Use relative path so it works both on localhost (via Vite proxy) and Vercel
+const API_URL = "/api";
 
 export const Home: React.FC = () => {
   const { state, setState } = useContext(AppContext);
@@ -61,7 +61,10 @@ export const Home: React.FC = () => {
         })
       });
 
-      if (!response.ok) throw new Error("Failed to create invoice");
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || "Failed to create invoice");
+      }
       
       const data = await response.json();
       const invoiceUrl = data.invoice_link;
@@ -75,8 +78,7 @@ export const Home: React.FC = () => {
         if (status === 'paid') {
           tg.HapticFeedback.notificationOccurred('success');
           
-          // Optimistically update UI or poll backend for confirmation
-          // For demo, we assume success and update local state
+          // Optimistically update UI
           const now = Date.now();
           const durationMs = plan.durationMonths * 30 * 24 * 60 * 60 * 1000;
           
