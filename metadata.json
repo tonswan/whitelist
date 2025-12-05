@@ -1,0 +1,5 @@
+{
+  "name": "whitelist",
+  "description": "Secure and fast VPN service with Telegram Stars payment integration.",
+  "requestFramePermissions": []
+}
