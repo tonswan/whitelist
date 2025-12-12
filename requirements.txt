@@ -2,3 +2,5 @@ aiogram>=3.0.0
 fastapi
 uvicorn
 pydantic
+sqlalchemy[asyncio]
+asyncpg
