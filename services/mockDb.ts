@@ -10,7 +10,7 @@ export const getMockTotalUsers = async (): Promise<number> => {
   // Simulate API delay
   await new Promise((resolve) => setTimeout(resolve, 500));
   // Return a realistic number from "DB"
-  return 14502 + Math.floor(Math.random() * 50);
+  return 1 + Math.floor(Math.random() * 50);
 };
 
 export const getStoredSubscription = (): Subscription => {
